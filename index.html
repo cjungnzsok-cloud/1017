@@ -5,586 +5,100 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>윷놀이</title>
 <style>
-  :root {
-    --bg: #f4ead5;
-    --ink: #3b2a1a;
-    --board: #f0d9a0;
-    --line: #8a5a2b;
-    --p0: #d9463b;
-    --p1: #2f6fd6;
-    --accent: #e8a13a;
-  }
+  :root { --bg:#f6ecd9; --ink:#3b2a1a; --flat:#e9c98f; --round:#8a5a2b; --accent:#b3392b; }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    font-family: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--ink);
-    min-height: 100vh;
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--ink);
+    font-family:"Noto Sans KR","Malgun Gothic",sans-serif; display:flex; flex-direction:column; align-items:center; padding:24px 16px; }
+  h1 { margin:0 0 4px; font-size:2rem; }
+  p.sub { margin:0 0 20px; opacity:.7; }
+  .board { display:flex; gap:14px; margin:20px 0; perspective:800px; }
+  .stick { width:46px; height:170px; border-radius:23px; border:3px solid #3b2a1a;
+    display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700;
+    transition:background .3s; box-shadow:0 6px 10px rgba(0,0,0,.25); }
+  .stick.flat { background:var(--flat); }
+  .stick.round { background:var(--round); color:#f6ecd9; }
+  .stick.throw { animation:toss .9s ease-in-out; }
+  @keyframes toss {
+    0% { transform:translateY(0) rotateX(0); }
+    40% { transform:translateY(-120px) rotateX(540deg); }
+    100% { transform:translateY(0) rotateX(1080deg); }
   }
-  header { text-align: center; padding: 14px 16px 4px; }
-  header h1 { margin: 0; font-size: 28px; letter-spacing: 4px; }
-  header p { margin: 4px 0 0; font-size: 13px; opacity: .7; }
-  .layout {
-    display: grid;
-    grid-template-columns: minmax(300px, 640px) 320px;
-    gap: 16px;
-    justify-content: center;
-    padding: 8px 16px 24px;
-    max-width: 1024px;
-    margin: 0 auto;
-  }
-  @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } }
-  .board-wrap { width: 100%; }
-  svg#board { width: 100%; height: auto; display: block; touch-action: manipulation; }
-  .panel { display: flex; flex-direction: column; gap: 12px; }
-  .card {
-    background: #fffaf0;
-    border: 2px solid #d9c08a;
-    border-radius: 14px;
-    padding: 10px 12px;
-  }
-  .player { transition: box-shadow .2s, border-color .2s; }
-  .player.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,161,58,.35); }
-  .player .top { display: flex; align-items: center; gap: 8px; font-weight: 700; }
-  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 2px solid rgba(0,0,0,.35); }
-  .player .stat { margin-left: auto; font-size: 12px; font-weight: 400; opacity: .75; }
-  .tray { display: flex; gap: 8px; margin-top: 8px; min-height: 30px; align-items: center; }
-  .tray .lbl { font-size: 12px; opacity: .65; margin-right: 2px; }
-  .tray button.tp {
-    width: 28px; height: 28px; border-radius: 50%; padding: 0;
-    border: 3px solid rgba(0,0,0,.35); cursor: default;
-  }
-  .tray button.tp.movable { cursor: pointer; border-color: #fff; box-shadow: 0 0 0 3px var(--accent); animation: pulse 1s infinite; }
-  @keyframes pulse { 50% { transform: scale(1.15); } }
-  .sticks { display: flex; justify-content: center; gap: 12px; height: 108px; align-items: center; }
-  .stick {
-    width: 24px; height: 92px; border-radius: 12px;
-    background: #b77a3c; border: 2px solid #6d4118; position: relative;
-    transition: background .15s;
-  }
-  .stick.flat {
-    background: repeating-linear-gradient(0deg, #f8e7b6 0 10px, #ecd08a 10px 12px);
-  }
-  .stick.mark::after {
-    content: ""; position: absolute; left: 50%; top: 10px; width: 10px; height: 10px;
-    margin-left: -5px; border-radius: 50%; background: #c0392b;
-  }
-  .rolling .stick { animation: flip .22s infinite alternate ease-in-out; }
-  .rolling .stick:nth-child(2) { animation-delay: .05s; }
-  .rolling .stick:nth-child(3) { animation-delay: .1s; }
-  .rolling .stick:nth-child(4) { animation-delay: .15s; }
-  @keyframes flip { from { transform: translateY(0) rotateX(0); } to { transform: translateY(-18px) rotateX(180deg); } }
-  .banner { text-align: center; font-size: 30px; font-weight: 800; min-height: 42px; color: var(--accent); text-shadow: 1px 1px 0 rgba(0,0,0,.15); }
-  .banner small { display: block; font-size: 13px; font-weight: 500; color: var(--ink); text-shadow: none; }
-  button.main {
-    width: 100%; padding: 12px; font-size: 18px; font-weight: 700; color: #fff;
-    background: var(--accent); border: 0; border-radius: 12px; cursor: pointer;
-    box-shadow: 0 3px 0 #b67818;
-  }
-  button.main:disabled { background: #c9b98f; box-shadow: 0 3px 0 #a89a70; cursor: not-allowed; }
-  button.main:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 #b67818; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px; align-items: center; }
-  .chips .empty { font-size: 13px; opacity: .6; }
-  .chip {
-    padding: 6px 14px; border-radius: 999px; border: 2px solid #b8975a;
-    background: #fff; font-size: 16px; font-weight: 700; cursor: pointer; color: var(--ink);
-  }
-  .chip.sel { background: var(--accent); color: #fff; border-color: #b67818; }
-  .chip.dead { opacity: .4; }
-  #log { font-size: 13px; line-height: 1.5; max-height: 150px; overflow-y: auto; }
-  #log div { padding: 1px 0; border-bottom: 1px dashed rgba(0,0,0,.08); }
-  .row { display: flex; gap: 8px; }
-  .row select, .row button.sub {
-    flex: 1; padding: 8px; border-radius: 10px; border: 2px solid #d9c08a; background: #fff;
-    font-size: 14px; color: var(--ink); cursor: pointer;
-  }
-  #turnMsg { font-weight: 700; text-align: center; }
-  #overlay {
-    position: fixed; inset: 0; background: rgba(40,25,10,.6); display: none;
-    align-items: center; justify-content: center; z-index: 10;
-  }
-  #overlay.show { display: flex; }
-  #overlay .box { background: #fffaf0; border-radius: 18px; padding: 28px 36px; text-align: center; }
-  #overlay h2 { margin: 0 0 14px; font-size: 32px; }
-  #overlay button { padding: 12px 28px; font-size: 18px; font-weight: 700; border: 0; border-radius: 12px; background: var(--accent); color: #fff; cursor: pointer; }
-
-  /* board */
-  .piece { transition: transform .35s ease; }
-  .piece circle.body { stroke: #2a1a0a; stroke-width: 2.5; }
-  .piece.movable { cursor: pointer; }
-  .piece.movable circle.glow { display: block; }
-  .piece circle.glow { display: none; fill: none; stroke: #ffd24d; stroke-width: 4; animation: glow 1s infinite alternate; }
-  @keyframes glow { from { opacity: .3; } to { opacity: 1; } }
-  .hint { cursor: pointer; }
-  .hint circle { fill: rgba(255,210,77,.35); stroke: #e8a13a; stroke-width: 3; stroke-dasharray: 6 4; }
-  .hint text { font-size: 15px; font-weight: 700; fill: #7a4a00; text-anchor: middle; pointer-events: none; }
+  #result { font-size:3rem; font-weight:900; min-height:4rem; color:var(--accent); }
+  #detail { min-height:1.5rem; margin-bottom:12px; }
+  button { font:inherit; font-size:1.2rem; font-weight:700; padding:12px 36px; border:0; border-radius:999px;
+    background:var(--accent); color:#fff; cursor:pointer; box-shadow:0 4px 0 #7d2419; }
+  button:active { transform:translateY(3px); box-shadow:0 1px 0 #7d2419; }
+  button:disabled { opacity:.6; cursor:wait; }
+  .history { margin-top:24px; text-align:center; max-width:480px; }
+  .history span { display:inline-block; margin:3px; padding:3px 10px; border-radius:999px; background:#fff8; border:1px solid #3b2a1a33; }
+  table { margin-top:16px; border-collapse:collapse; }
+  td, th { padding:4px 14px; border-bottom:1px solid #3b2a1a22; }
+  .legend { font-size:.85rem; opacity:.7; margin-top:6px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>윷 놀 이</h1>
-  <p>말 4개를 먼저 모두 완주시키면 승리!</p>
-</header>
+  <h1>🎲 윷놀이</h1>
+  <p class="sub">윷가락 4개를 던져 평평한 면의 개수로 결과를 정해요</p>
 
-<div class="layout">
-  <div class="board-wrap">
-    <svg id="board" viewBox="0 0 600 600" aria-label="윷판"></svg>
-  </div>
+  <div class="board" id="board"></div>
+  <div id="result">?</div>
+  <div id="detail"></div>
+  <button id="throwBtn">윷 던지기</button>
+  <div class="legend">평평한 면 1개=도 · 2개=개 · 3개=걸 · 4개=윷 · 0개=모</div>
 
-  <div class="panel">
-    <div class="card player" id="pc0"></div>
-    <div class="card player" id="pc1"></div>
-
-    <div class="card">
-      <div id="turnMsg"></div>
-      <div class="sticks" id="sticks">
-        <div class="stick flat mark"></div><div class="stick"></div><div class="stick"></div><div class="stick"></div>
-      </div>
-      <div class="banner" id="banner"></div>
-      <button class="main" id="throwBtn">윷 던지기</button>
-    </div>
-
-    <div class="card">
-      <div style="font-size:12px;opacity:.7;margin-bottom:6px">던진 결과 (선택 후 말을 누르세요)</div>
-      <div class="chips" id="chips"></div>
-    </div>
-
-    <div class="card"><div id="log"></div></div>
-
-    <div class="row">
-      <select id="mode">
-        <option value="ai">컴퓨터와 대결</option>
-        <option value="2p">2명이 대결</option>
-      </select>
-      <button class="sub" id="restart">새 게임</button>
-    </div>
-  </div>
-</div>
-
-<div id="overlay"><div class="box"><h2 id="winTxt"></h2><button id="again">다시 하기</button></div></div>
+  <div class="history" id="history"></div>
+  <table id="stats"></table>
 
 <script>
-(() => {
-  const NS = 'http://www.w3.org/2000/svg';
-  const PIECES_PER_TEAM = 4;
-  const COLORS = ['#d9463b', '#2f6fd6'];
-  const $ = id => document.getElementById(id);
-  const params = new URLSearchParams(location.search);
-  const AUTO = params.has('auto');          // 컴퓨터끼리 대결 (데모/테스트용)
-  const FAST = params.has('fast');
-  const T = ms => (FAST ? Math.min(ms, 20) : ms);
+const NAMES = {1:"도", 2:"개", 3:"걸", 4:"윷", 0:"모"};
+const MOVES = {1:1, 2:2, 3:3, 4:4, 0:5};
+const board = document.getElementById("board");
+const resultEl = document.getElementById("result");
+const detailEl = document.getElementById("detail");
+const btn = document.getElementById("throwBtn");
+const historyEl = document.getElementById("history");
+const statsEl = document.getElementById("stats");
+const counts = {도:0, 개:0, 걸:0, 윷:0, 모:0};
+const history = [];
 
-  // ---------- board geometry ----------
-  const P = {};
-  P[0] = [520, 520];
-  for (let k = 1; k <= 4; k++) P[k] = [520, 520 - 88 * k];
-  P[5] = [520, 80];
-  for (let k = 6; k <= 9; k++) P[k] = [520 - 88 * (k - 5), 80];
-  P[10] = [80, 80];
-  for (let k = 11; k <= 14; k++) P[k] = [80, 80 + 88 * (k - 10)];
-  P[15] = [80, 520];
-  for (let k = 16; k <= 19; k++) P[k] = [80 + 88 * (k - 15), 520];
-  P[22] = [300, 300];
-  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-  P[20] = lerp(P[5], P[22], 1 / 3);  P[21] = lerp(P[5], P[22], 2 / 3);
-  P[23] = lerp(P[22], P[15], 1 / 3); P[24] = lerp(P[22], P[15], 2 / 3);
-  P[25] = lerp(P[10], P[22], 1 / 3); P[26] = lerp(P[10], P[22], 2 / 3);
-  P[27] = lerp(P[22], P[0], 1 / 3);  P[28] = lerp(P[22], P[0], 2 / 3);
-  const BIG = new Set([0, 5, 10, 15, 22]);
+for (let i = 0; i < 4; i++) {
+  const s = document.createElement("div");
+  s.className = "stick flat";
+  s.textContent = "평";
+  board.appendChild(s);
+}
+const sticks = [...board.children];
 
-  // 다음 칸 계산. cur: 현재 칸(-1 = 대기), route: 대각선 진행 방향('A'|'B'), first: 이번 이동의 첫 걸음인지
-  function nextNode(cur, route, first) {
-    if (cur === -1 || cur === 0) return [1, null];
-    if (cur < 20) {
-      if (first && cur === 5) return [20, 'A'];
-      if (first && cur === 10) return [25, 'B'];
-      if (cur === 19) return ['done', null];
-      return [cur + 1, null];
-    }
-    switch (cur) {
-      case 20: return [21, 'A'];
-      case 21: return [22, 'A'];
-      case 22: return route === 'B' ? [27, 'B'] : [23, 'A'];
-      case 23: return [24, 'A'];
-      case 24: return [15, null];
-      case 25: return [26, 'B'];
-      case 26: return [22, 'B'];
-      case 27: return [28, 'B'];
-      case 28: return ['done', null];
-    }
-  }
+function render() {
+  historyEl.innerHTML = history.slice(-20).reverse().map(h => `<span>${h}</span>`).join("");
+  statsEl.innerHTML = "<tr>" + Object.keys(counts).map(k => `<th>${k}</th>`).join("") + "</tr><tr>" +
+    Object.values(counts).map(v => `<td>${v}</td>`).join("") + "</tr>";
+}
 
-  // 말 하나를 steps칸(빽도는 -1) 움직였을 때의 결과. 움직일 수 없으면 null
-  function simulate(p, steps) {
-    if (steps === -1) {
-      if (!p.hist.length) return null;
-      const hist = p.hist.slice();
-      const [pos, route] = hist.pop();
-      return { pos, hist, route, done: false };
-    }
-    let cur = p.pos, route = p.route;
-    const hist = p.hist.slice();
-    for (let i = 0; i < steps; i++) {
-      const [n, r] = nextNode(cur, route, i === 0);
-      hist.push([cur === -1 ? 0 : cur, route]);
-      if (n === 'done') return { pos: 'done', hist, route: null, done: true };
-      cur = n; route = r;
-    }
-    return { pos: cur, hist, route, done: false };
-  }
+btn.addEventListener("click", () => {
+  btn.disabled = true;
+  resultEl.textContent = "…";
+  detailEl.textContent = "";
+  sticks.forEach(s => { s.classList.remove("throw"); void s.offsetWidth; s.classList.add("throw"); });
 
-  // ---------- throw ----------
-  const RESULTS = {
-    back: { name: '빽도', steps: -1, extra: false },
-    1: { name: '도', steps: 1, extra: false },
-    2: { name: '개', steps: 2, extra: false },
-    3: { name: '걸', steps: 3, extra: false },
-    4: { name: '윷', steps: 4, extra: true },
-    0: { name: '모', steps: 5, extra: true },
-  };
-
-  // ---------- state ----------
-  let S;          // game state
-  let pieces;     // pieces[team][i]
-  let busy = false;
-  let aiTimer = null;
-  let mode = 'ai';
-
-  function isAI(team) { return AUTO || (mode === 'ai' && team === 1); }
-  const teamName = t => (AUTO ? ['컴퓨터 1', '컴퓨터 2'][t] : mode === 'ai' ? ['플레이어', '컴퓨터'][t] : ['플레이어 1', '플레이어 2'][t]);
-
-  // ---------- DOM: board ----------
-  const svg = $('board');
-  const gHints = document.createElementNS(NS, 'g');
-  const gPieces = document.createElementNS(NS, 'g');
-
-  function el(name, attrs = {}, parent) {
-    const e = document.createElementNS(NS, name);
-    for (const k in attrs) e.setAttribute(k, attrs[k]);
-    if (parent) parent.appendChild(e);
-    return e;
-  }
-
-  function drawBoard() {
-    svg.innerHTML = '';
-    el('rect', { x: 8, y: 8, width: 584, height: 584, rx: 28, fill: '#f0d9a0', stroke: '#c9a45c', 'stroke-width': 4 }, svg);
-    const ln = { stroke: '#8a5a2b', 'stroke-width': 6, 'stroke-linecap': 'round', fill: 'none' };
-    el('polygon', { ...ln, points: [0, 5, 10, 15].map(i => P[i].join(',')).join(' '), 'stroke-linejoin': 'round' }, svg);
-    el('line', { ...ln, x1: P[5][0], y1: P[5][1], x2: P[15][0], y2: P[15][1] }, svg);
-    el('line', { ...ln, x1: P[10][0], y1: P[10][1], x2: P[0][0], y2: P[0][1] }, svg);
-    for (let i = 0; i <= 28; i++) {
-      if (!P[i]) continue;
-      const big = BIG.has(i);
-      const c = el('circle', { cx: P[i][0], cy: P[i][1], r: big ? 21 : 13, fill: big ? '#f7e9c4' : '#fff6dc', stroke: '#8a5a2b', 'stroke-width': big ? 5 : 4 }, svg);
-      if (big) el('circle', { cx: P[i][0], cy: P[i][1], r: 10, fill: 'none', stroke: '#8a5a2b', 'stroke-width': 2 }, svg);
-    }
-    const lab = el('text', { x: P[0][0], y: P[0][1] + 44, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700, fill: '#6d4118' }, svg);
-    lab.textContent = '출발 / 도착';
-    svg.appendChild(gHints);
-    svg.appendChild(gPieces);
-  }
-
-  function buildPieces() {
-    gPieces.innerHTML = '';
-    pieces = [[], []];
-    for (let t = 0; t < 2; t++) {
-      for (let i = 0; i < PIECES_PER_TEAM; i++) {
-        const g = el('g', { class: 'piece' }, gPieces);
-        el('circle', { class: 'glow', r: 24 }, g);
-        el('circle', { class: 'body', r: 18, fill: COLORS[t] }, g);
-        el('circle', { r: 9, fill: 'rgba(255,255,255,.35)' }, g);
-        const p = { id: `${t}-${i}`, team: t, pos: -1, hist: [], route: null, done: false, el: g };
-        g.addEventListener('click', () => onPieceClick(p));
-        pieces[t].push(p);
-      }
-    }
-  }
-
-  // ---------- rules helpers ----------
-  const onBoard = t => pieces[t].filter(p => !p.done && p.pos >= 0);
-  const groupOf = p => (p.pos === -1 ? [p] : pieces[p.team].filter(q => !q.done && q.pos === p.pos));
-
-  // 현재 팀이 steps 결과로 할 수 있는 이동 목록 (같은 칸의 말은 한 묶음)
-  function options(team, steps) {
-    const seen = new Set(), res = [];
-    for (const p of pieces[team]) {
-      if (p.done) continue;
-      const key = p.pos === -1 ? 'w' : 'n' + p.pos;
-      if (seen.has(key)) continue;
-      const sim = simulate(p, steps);
-      if (!sim) continue;
-      seen.add(key);
-      res.push({ piece: p, sim });
-    }
-    return res;
-  }
-  const canUse = r => options(S.turn, r.steps).length > 0;
-
-  // ---------- log / UI ----------
-  function log(msg) {
-    const d = document.createElement('div');
-    d.textContent = msg;
-    const box = $('log');
-    box.appendChild(d);
-    while (box.children.length > 60) box.removeChild(box.firstChild);
-    box.scrollTop = box.scrollHeight;
-  }
-
-  function setSticks(flats, backMarkFlat) {
-    const nodes = $('sticks').children;
-    for (let i = 0; i < 4; i++) {
-      nodes[i].classList.toggle('flat', !!flats[i]);
-      nodes[i].classList.toggle('mark', i === 0);
-    }
-  }
-
-  function render() {
-    // pieces on board
-    const groups = {};
-    for (let t = 0; t < 2; t++) for (const p of pieces[t]) {
-      if (!p.done && p.pos >= 0) (groups[p.pos] ||= []).push(p);
-    }
-    const OFF = [[-10, -10], [10, -10], [-10, 10], [10, 10]];
-    for (let t = 0; t < 2; t++) for (const p of pieces[t]) {
-      if (p.done || p.pos < 0) { p.el.style.display = 'none'; continue; }
-      const wasHidden = p.el.style.display === 'none';
-      p.el.style.display = '';
-      if (wasHidden) p.el.style.transition = 'none';
-      const grp = groups[p.pos], idx = grp.indexOf(p);
-      const off = grp.length > 1 ? OFF[idx % 4] : [0, 0];
-      p.el.style.transform = `translate(${P[p.pos][0] + off[0]}px, ${P[p.pos][1] + off[1]}px)`;
-      const s = grp.length > 1 ? 0.78 : 1;
-      p.el.firstChild.setAttribute('r', 24 * s);
-      p.el.children[1].setAttribute('r', 18 * s);
-      p.el.children[2].setAttribute('r', 9 * s);
-      if (wasHidden) { p.el.getBoundingClientRect(); p.el.style.transition = ''; }
-    }
-
-    // movable highlights & hints
-    const humanTurn = !S.over && !busy && !isAI(S.turn);
-    const sel = S.pending[S.selected];
-    let opts = [];
-    if (humanTurn && sel) opts = options(S.turn, sel.steps);
-    const movableIds = new Set();
-    for (const o of opts) for (const q of groupOf(o.piece)) movableIds.add(q.id);
-    for (let t = 0; t < 2; t++) for (const p of pieces[t]) p.el.classList.toggle('movable', movableIds.has(p.id));
-    gHints.innerHTML = '';
-    for (const o of opts) {
-      const d = o.sim.done ? P[0] : P[o.sim.pos];
-      const h = el('g', { class: 'hint' }, gHints);
-      el('circle', { cx: d[0], cy: d[1], r: BIG.has(o.sim.pos) || o.sim.done ? 27 : 20 }, h);
-      if (o.sim.done) { const tx = el('text', { x: d[0], y: d[1] - 32 }, h); tx.textContent = '완주'; }
-      h.addEventListener('click', () => doMove(S.selected, o.piece));
-    }
-
-    // player cards
-    for (let t = 0; t < 2; t++) {
-      const card = $('pc' + t);
-      const waiting = pieces[t].filter(p => !p.done && p.pos === -1);
-      const done = pieces[t].filter(p => p.done).length;
-      card.classList.toggle('active', !S.over && S.turn === t);
-      card.innerHTML = `<div class="top"><span class="dot" style="background:${COLORS[t]}"></span>${teamName(t)}<span class="stat">완주 ${done} / ${PIECES_PER_TEAM}</span></div>
-        <div class="tray"><span class="lbl">대기</span></div>`;
-      const tray = card.querySelector('.tray');
-      const canEnter = humanTurn && S.turn === t && opts.some(o => o.piece.pos === -1 && o.piece.team === t);
-      waiting.forEach((p, i) => {
-        const b = document.createElement('button');
-        b.className = 'tp' + (canEnter ? ' movable' : '');
-        b.style.background = COLORS[t];
-        b.disabled = !canEnter;
-        b.addEventListener('click', () => onPieceClick(p));
-        tray.appendChild(b);
-      });
-      if (!waiting.length) { const s = document.createElement('span'); s.className = 'lbl'; s.textContent = '없음'; tray.appendChild(s); }
-    }
-
-    // turn / buttons
-    $('turnMsg').textContent = S.over ? '게임 종료' : `${teamName(S.turn)} 차례` + (isAI(S.turn) ? ' (생각 중…)' : '');
-    $('turnMsg').style.color = COLORS[S.turn];
-    $('throwBtn').disabled = S.over || busy || isAI(S.turn) || S.throwsLeft <= 0;
-    $('throwBtn').textContent = S.throwsLeft > 1 ? `윷 던지기 (${S.throwsLeft}번)` : '윷 던지기';
-
-    // chips
-    const chips = $('chips');
-    chips.innerHTML = '';
-    if (!S.pending.length) {
-      const e = document.createElement('span'); e.className = 'empty'; e.textContent = '아직 결과가 없어요'; chips.appendChild(e);
-    }
-    S.pending.forEach((r, i) => {
-      const c = document.createElement('button');
-      c.className = 'chip' + (i === S.selected ? ' sel' : '') + (canUse(r) ? '' : ' dead');
-      c.textContent = r.name;
-      c.addEventListener('click', () => { if (busy || isAI(S.turn) || S.over) return; S.selected = i; render(); });
-      chips.appendChild(c);
+  const flats = sticks.map(() => Math.random() < 0.5); // true = 평평한 면
+  setTimeout(() => {
+    sticks.forEach((s, i) => {
+      s.className = "stick " + (flats[i] ? "flat" : "round");
+      s.textContent = flats[i] ? "평" : "둥";
     });
-  }
-
-  // ---------- game flow ----------
-  function newGame() {
-    clearTimeout(aiTimer);
-    busy = false;
-    mode = $('mode').value;
-    buildPieces();
-    S = { turn: 0, throwsLeft: 1, pending: [], selected: null, over: false };
-    $('log').innerHTML = '';
-    $('banner').innerHTML = '';
-    $('overlay').classList.remove('show');
-    log('게임을 시작합니다. ' + teamName(0) + ' 먼저!');
-    flow();
-  }
-
-  function nextTurn() {
-    S.turn = 1 - S.turn;
-    S.throwsLeft = 1;
-    S.pending = [];
-    S.selected = null;
-    log(`— ${teamName(S.turn)} 차례 —`);
-  }
-
-  function flow() {
-    clearTimeout(aiTimer);
-    if (S.over) { render(); return; }
-    if (S.throwsLeft === 0) {
-      if (!S.pending.length) nextTurn();
-      else if (!S.pending.some(canUse)) {
-        log('움직일 수 있는 말이 없어 차례가 넘어갑니다.');
-        nextTurn();
-      }
-    }
-    // 선택된 결과가 유효하지 않으면 사용 가능한 첫 결과 선택
-    if (S.selected == null || !S.pending[S.selected] || !canUse(S.pending[S.selected])) {
-      const i = S.pending.findIndex(canUse);
-      S.selected = i >= 0 ? i : null;
-    }
+    const n = flats.filter(Boolean).length;
+    const name = NAMES[n];
+    resultEl.textContent = name + (n === 4 || n === 0 ? "! 🎉" : "");
+    detailEl.textContent = `평평한 면 ${n}개 → ${name} (${MOVES[n]}칸 이동${n === 4 || n === 0 ? ", 한 번 더!" : ""})`;
+    counts[name]++;
+    history.push(name);
     render();
-    if (isAI(S.turn) && !busy) aiTimer = setTimeout(aiAct, T(900));
-  }
+    btn.disabled = false;
+  }, 900);
+});
 
-  function throwYut() {
-    if (busy || S.over || S.throwsLeft <= 0) return;
-    busy = true;
-    S.throwsLeft--;
-    $('banner').innerHTML = '';
-    $('sticks').classList.add('rolling');
-    render();
-    const spin = setInterval(() => setSticks([0, 1, 2, 3].map(() => Math.random() < .5)), 110);
-    setTimeout(() => {
-      clearInterval(spin);
-      $('sticks').classList.remove('rolling');
-      const flats = [0, 1, 2, 3].map(() => Math.random() < 0.6);
-      setSticks(flats);
-      const n = flats.filter(Boolean).length;
-      const r = (n === 1 && flats[0]) ? RESULTS.back : RESULTS[n];
-      setTimeout(() => finishThrow(r), T(400));
-    }, T(800));
-  }
-
-  function finishThrow(r) {
-    busy = false;
-    const who = teamName(S.turn);
-    let extra = r.extra ? '<small>한 번 더 던지세요!</small>' : '';
-    $('banner').innerHTML = r.name + extra;
-    log(`${who}: ${r.name}!`);
-    if (r.extra) S.throwsLeft++;
-    if (r.steps === -1 && onBoard(S.turn).length === 0) {
-      log('판 위에 말이 없어 빽도는 무효입니다.');
-    } else {
-      S.pending.push(r);
-    }
-    flow();
-  }
-
-  function doMove(ri, piece) {
-    if (S.over || ri == null || !S.pending[ri]) return;
-    const r = S.pending[ri];
-    const team = piece.team;
-    const sim = simulate(piece, r.steps);
-    if (!sim) return;
-    const group = groupOf(piece);
-    S.pending.splice(ri, 1);
-    S.selected = null;
-
-    const captured = sim.done ? [] : pieces[1 - team].filter(q => !q.done && q.pos === sim.pos);
-    const stacked = !sim.done && pieces[team].some(q => !q.done && q.pos === sim.pos && !group.includes(q));
-    for (const g of group) {
-      g.pos = sim.done ? -1 : sim.pos;
-      g.hist = sim.hist.map(h => h.slice());
-      g.route = sim.route;
-      g.done = sim.done;
-    }
-    const who = teamName(team);
-    if (sim.done) {
-      log(`${who}: 말 ${group.length}개 완주! 🎉`);
-    } else {
-      log(`${who}: ${r.name}으로 이동` + (group.length > 1 ? ` (${group.length}개 업고)` : '') + (stacked ? ' — 업기!' : ''));
-    }
-    if (captured.length) {
-      for (const c of captured) { c.pos = -1; c.hist = []; c.route = null; }
-      S.throwsLeft++;
-      log(`${who}: 상대 말 ${captured.length}개를 잡았습니다! 한 번 더!`);
-      $('banner').innerHTML = '잡았다!<small>한 번 더 던지세요!</small>';
-    }
-    if (pieces[team].every(p => p.done)) {
-      S.over = true;
-      flow();
-      $('winTxt').textContent = `${who} 승리! 🏆`;
-      $('winTxt').style.color = COLORS[team];
-      $('overlay').classList.add('show');
-      return;
-    }
-    flow();
-  }
-
-  function onPieceClick(p) {
-    if (busy || S.over || isAI(S.turn) || p.team !== S.turn || S.selected == null) return;
-    const o = options(S.turn, S.pending[S.selected].steps).find(o => o.piece.pos === p.pos);
-    if (o) doMove(S.selected, o.piece);
-  }
-
-  // ---------- AI ----------
-  function aiAct() {
-    if (S.over || busy || !isAI(S.turn)) return;
-    if (S.throwsLeft > 0) { throwYut(); return; }
-    let best = null;
-    S.pending.forEach((r, ri) => {
-      for (const o of options(S.turn, r.steps)) {
-        const s = scoreMove(r, o);
-        if (!best || s > best.s) best = { s, ri, piece: o.piece };
-      }
-    });
-    if (best) doMove(best.ri, best.piece);
-    else flow();
-  }
-
-  function scoreMove(r, o) {
-    const size = groupOf(o.piece).length;
-    const sim = o.sim;
-    let s = Math.random();
-    if (sim.done) return s + 60 * size;
-    const foes = pieces[1 - S.turn].filter(q => !q.done && q.pos === sim.pos).length;
-    s += foes * 100;
-    if (pieces[S.turn].some(q => !q.done && q.pos === sim.pos && !groupOf(o.piece).includes(q))) s += 25;
-    if (sim.pos === 20 || sim.pos === 25 || sim.pos === 22 || sim.pos === 5 || sim.pos === 10) s += 12;
-    if (o.piece.pos === -1) s += 6;
-    s += r.steps * 2 + sim.hist.length * 0.5;
-    // 상대가 바로 뒤에서 잡을 수 있는 위치는 감점
-    const behind = pieces[1 - S.turn].some(q => !q.done && q.pos >= 0 && q.pos < 20 && sim.pos < 20 && sim.pos - q.pos >= 1 && sim.pos - q.pos <= 5);
-    if (behind) s -= 8 * size;
-    return s;
-  }
-
-  // ---------- wire up ----------
-  $('throwBtn').addEventListener('click', throwYut);
-  $('restart').addEventListener('click', newGame);
-  $('again').addEventListener('click', newGame);
-  $('mode').addEventListener('change', newGame);
-  drawBoard();
-  newGame();
-
-  // 테스트/디버깅용
-  window.__yut = { get state() { return S; }, get pieces() { return pieces; }, simulate };
-})();
+render();
 </script>
 </body>
 </html>
