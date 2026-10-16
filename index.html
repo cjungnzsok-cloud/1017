@@ -89,7 +89,7 @@
   </div>
   <div id="boardWrap"><svg id="board" viewBox="0 0 600 600" aria-label="윷판"></svg></div>
   </div>
-  <div class="legend">평평한 면 1개=도(1) · 2개=개(2) · 3개=걸(3) · 4개=윷(4, 한 번 더) · 0개=모(5, 한 번 더)<br>상대 말을 잡으면 한 번 더! 같은 편 말이 만나면 함께 움직여요(업기). 모서리에 멈춘 말은 지름길로 갈 수 있어요.</div>
+  <div class="legend">평평한 면 1개=도(1) · 2개=개(2) · 3개=걸(3) · 4개=윷(4, 한 번 더) · 0개=모(5, 한 번 더)<br>상대 말을 잡으면 한 번 더! 같은 편 말이 만나면 함께 움직여요(업기). 모서리에 멈춘 말은 지름길로 갈 수 있어요.<br>⚠️ 매 판 랜덤으로 생기는 빨간 <b>벌</b> 표시 2칸에 멈추면, 윷을 한 번 더 던져 나온 칸 수만큼 뒤로 가요(출발점을 넘으면 처음으로).</div>
 
 <script>
 const NAMES = {1:"도", 2:"개", 3:"걸", 4:"윷", 0:"모"};
@@ -126,11 +126,15 @@ const ROUTES = {
 };
 
 /* ---------- 상태 ---------- */
-let teams, turn, throwsLeft, pending, selIdx, choosing, winner, animating, mode = "cpu", cpuTimer;
+let teams, turn, throwsLeft, pending, selIdx, choosing, winner, animating, mode = "cpu", cpuTimer, penalty = null, penaltyNodes = [];
 const humanTurn = () => winner === null && !(mode === "cpu" && turn === 1);
+
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 function newGame() {
   clearTimeout(cpuTimer);
+  penalty = null;
+  penaltyNodes = shuffle(Object.keys(P).map(Number).filter(n => n !== 0)).slice(0, 2); // 벌칙칸 2개
   mode = document.getElementById("mode").value;
   const n = +document.getElementById("pieceCount").value;
   teams = [0, 1].map(() => Array.from({length: n}, () => ({route: null, node: null, done: false})));
@@ -173,12 +177,37 @@ function applyMove(lead, opt) {
   pending.splice(selIdx, 1);
   selIdx = 0; choosing = null;
   if (teams[turn].every(p => p.done)) { winner = turn; pending = []; throwsLeft = 0; }
-  else if (pending.length === 0 && throwsLeft === 0) { turn = 1 - turn; throwsLeft = 1; }
-  render(captured ? "상대 말을 잡았어요! 한 번 더 던지세요 🎯" : "");
+  else if (opt.node !== "F" && penaltyNodes.includes(opt.node)) penalty = {team: turn, node: opt.node};
+  else nextIfDone();
+  render(penalty ? "⚠️ 벌칙칸에 걸렸어요! 윷을 던져 나온 만큼 뒤로 갑니다" : captured ? "상대 말을 잡았어요! 한 번 더 던지세요 🎯" : "");
+}
+
+function nextIfDone() {
+  if (pending.length === 0 && throwsLeft === 0) { turn = 1 - turn; throwsLeft = 1; }
+}
+
+// 벌칙: 던져서 나온 칸 수만큼 자기 경로를 따라 뒤로 (출발점 너머면 처음으로)
+function resolvePenalty(steps) {
+  const group = teams[penalty.team].filter(p => !p.done && p.node === penalty.node);
+  let dest = null, captured = false;
+  group.forEach(p => {
+    const j = ROUTES[p.route].indexOf(p.node) - steps;
+    if (j < 0) { p.node = null; p.route = null; }
+    else { p.node = ROUTES[p.route][j]; dest = p.node; }
+  });
+  if (dest !== null) {
+    teams[1 - penalty.team].forEach(p => {
+      if (!p.done && p.node === dest) { p.node = null; p.route = null; captured = true; }
+    });
+  }
+  if (captured) throwsLeft++;
+  penalty = null;
+  nextIfDone();
+  render(`벌칙으로 ${steps}칸 뒤로 이동했어요` + (captured ? " — 뒤에서 상대 말을 잡았어요! 한 번 더 🎯" : ""));
 }
 
 function clickPiece(piece) {
-  if (!humanTurn() || pending.length === 0) return;
+  if (!humanTurn() || penalty || pending.length === 0) return;
   const opts = options(piece, pending[selIdx]);
   if (opts.length === 1) applyMove(piece, opts[0]);
   else { choosing = {piece, opts}; render(); }
@@ -193,7 +222,7 @@ function render(note = "") {
     el.querySelector("b").textContent = (t ? "🔵 파랑팀" : "🔴 빨강팀") + (mode === "cpu" ? (t ? " (컴퓨터)" : " (나)") : "");
     const tray = el.querySelector(".tray");
     tray.innerHTML = "";
-    const canPick = humanTurn() && turn === t && pending.length > 0;
+    const canPick = humanTurn() && !penalty && turn === t && pending.length > 0;
     let homeShown = false;
     ts.forEach((p, i) => {
       if (p.node !== null && !p.done) return;
@@ -216,6 +245,7 @@ function render(note = "") {
   // 상태 문구
   let msg;
   if (winner !== null) msg = `🎉 ${TEAM_NAMES[winner]}팀 승리!`;
+  else if (penalty) msg = humanTurn() ? "⚠️ 벌칙칸! 윷을 던져 나온 만큼 뒤로 갑니다" : "🤖 컴퓨터가 벌칙 윷을 던지는 중…";
   else if (!humanTurn()) msg = throwsLeft ? "🤖 컴퓨터가 윷을 던지는 중…" : "🤖 컴퓨터가 말을 고르는 중…";
   else if (choosing) msg = "이동할 곳을 선택하세요 (지름길 또는 바깥 길)";
   else if (pending.length && throwsLeft) msg = `${TEAM_NAMES[turn]}팀: 말을 움직이거나 윷을 한 번 더 던지세요`;
@@ -225,14 +255,15 @@ function render(note = "") {
   document.getElementById("status").style.color = winner !== null ? TEAM_COLORS[winner] : TEAM_COLORS[turn];
 
   // 버튼 / 대기 결과
-  document.getElementById("throwBtn").disabled = animating || !humanTurn() || throwsLeft === 0;
+  document.getElementById("throwBtn").disabled = animating || !humanTurn() || (throwsLeft === 0 && !penalty);
+  document.getElementById("throwBtn").textContent = penalty ? "벌칙 윷 던지기" : "윷 던지기";
   const pend = document.getElementById("pending");
   pend.innerHTML = "";
   pending.forEach((s, i) => {
     const c = document.createElement("button");
     c.className = "chip" + (i === selIdx ? " sel" : "");
     c.textContent = `${stepName(s)} (${s}칸)`;
-    c.disabled = !humanTurn();
+    c.disabled = !humanTurn() || !!penalty;
     c.onclick = () => { selIdx = i; choosing = null; render(); };
     pend.appendChild(c);
   });
@@ -253,13 +284,13 @@ function renderBoard() {
   Object.keys(P).forEach(n => {
     const [x, y] = P[n];
     const big = BIG.has(+n);
-    h += `<circle cx="${x}" cy="${y}" r="${big ? 20 : 12}" fill="${big ? "#f6ecd9" : "#fff8ec"}" stroke="#3b2a1a" stroke-width="${big ? 4 : 3}"/>`;
+    h += `<circle cx="${x}" cy="${y}" r="${big ? 20 : 12}" fill="${penaltyNodes.includes(+n) ? "#ff9d8f" : big ? "#f6ecd9" : "#fff8ec"}" stroke="#3b2a1a" stroke-width="${big ? 4 : 3}"/>`;
     if (big) h += `<circle cx="${x}" cy="${y}" r="9" fill="none" stroke="#3b2a1a" stroke-width="2"/>`;
   });
   h += `<text x="${P[0][0]}" y="${P[0][1] + 44}" text-anchor="middle" font-size="16" font-weight="700" fill="#3b2a1a">출발·골인</text>`;
 
   // 말
-  const ready = humanTurn() && pending.length > 0;
+  const ready = humanTurn() && !penalty && pending.length > 0;
   teams.forEach((ts, t) => {
     const byNode = {};
     ts.forEach(p => { if (!p.done && p.node !== null) (byNode[p.node] = byNode[p.node] || []).push(p); });
@@ -273,6 +304,13 @@ function renderBoard() {
         ${grp.length > 1 ? `<text x="${x}" y="${y + 6}" text-anchor="middle" font-size="18" font-weight="900" fill="#fff">${grp.length}</text>` : ""}
       </g>`;
     });
+  });
+
+  // 벌칙칸 표시
+  penaltyNodes.forEach(n => {
+    const [x, y] = P[n];
+    h += `<g pointer-events="none"><circle cx="${x + 15}" cy="${y - 17}" r="11" fill="#d62d1a" stroke="#fff" stroke-width="2"/>
+      <text x="${x + 15}" y="${y - 12}" text-anchor="middle" font-size="13" font-weight="900" fill="#fff">벌</text></g>`;
   });
 
   // 이동 대상 표시
@@ -293,7 +331,7 @@ document.getElementById("board").addEventListener("click", e => {
   const tgt = e.target.closest(".target");
   if (tgt && choosing && humanTurn()) { applyMove(choosing.piece, choosing.opts[+tgt.dataset.opt]); return; }
   const pc = e.target.closest(".piece");
-  if (pc && humanTurn() && pending.length && +pc.dataset.team === turn) {
+  if (pc && humanTurn() && !penalty && pending.length && +pc.dataset.team === turn) {
     const piece = teams[turn].find(p => !p.done && p.node === +pc.dataset.node);
     clickPiece(piece);
     return;
@@ -313,7 +351,7 @@ const sticks = [...stickBox.children];
 document.getElementById("throwBtn").addEventListener("click", () => { if (humanTurn()) doThrow(); });
 
 function doThrow() {
-  if (animating || throwsLeft === 0 || winner !== null) return;
+  if (animating || (throwsLeft === 0 && !penalty) || winner !== null) return;
   animating = true;
   choosing = null;
   document.getElementById("result").textContent = "…";
@@ -328,6 +366,12 @@ function doThrow() {
     });
     const n = flats.filter(Boolean).length;
     const extra = n === 4 || n === 0;
+    if (penalty) {
+      document.getElementById("result").textContent = `${NAMES[n]} (벌칙 -${MOVES[n]})`;
+      animating = false;
+      resolvePenalty(MOVES[n]);
+      return;
+    }
     document.getElementById("result").textContent = `${NAMES[n]}${extra ? "! 🎉" : ""}`;
     throwsLeft--;
     if (extra) throwsLeft++;
@@ -346,7 +390,7 @@ function scheduleCpu() {
 
 function cpuStep() {
   if (mode !== "cpu" || turn !== 1 || winner !== null || animating) return;
-  if (throwsLeft > 0) { doThrow(); return; }
+  if (penalty || throwsLeft > 0) { doThrow(); return; }
   if (pending.length === 0) return;
   let best = null;
   pending.forEach((steps, si) => {
@@ -371,6 +415,7 @@ function scoreMove(lead, opt) {
   if (opt.node === "F") return sc + 60;
   if (teams[0].some(p => !p.done && p.node === opt.node)) sc += 100;      // 잡기
   if (teams[1].some(p => p !== lead && !p.done && p.node === opt.node)) sc += 8; // 업기
+  if (penaltyNodes.includes(opt.node)) sc -= 12;                          // 벌칙칸 피하기
   if (opt.node >= 20) sc += 6;                                            // 지름길
   sc += ROUTES[opt.route].indexOf(opt.node) * 0.5;                        // 진행도
   return sc;
