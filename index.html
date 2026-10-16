@@ -12,7 +12,7 @@
     font-family:"Noto Sans KR","Malgun Gothic",sans-serif; display:flex; flex-direction:column; align-items:center; padding:20px 12px 40px; }
   h1 { margin:0 0 4px; font-size:2rem; }
   p.sub { margin:0 0 12px; opacity:.7; text-align:center; }
-  .teams { display:flex; gap:12px; width:min(94vw,600px); margin-bottom:8px; }
+  .teams { display:flex; gap:12px; width:100%; margin-bottom:8px; }
   .team { flex:1; padding:8px 10px; border-radius:12px; background:#fff8; border:3px solid transparent; }
   .team.active { border-color:currentColor; background:#fff; }
   .team.red { color:var(--red); } .team.blue { color:var(--blue); }
@@ -44,13 +44,20 @@
   .pending { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:10px 0; min-height:36px; }
   .chip { font:inherit; font-weight:700; padding:4px 14px; border-radius:999px; border:2px solid var(--ink); background:#fff; cursor:pointer; }
   .chip.sel { background:var(--ink); color:#fff; }
-  #boardWrap { width:min(94vw,600px); }
+  #boardWrap { width:100%; }
+  .game { display:flex; flex-direction:column; align-items:center; gap:16px; width:min(94vw,640px); }
+  .panel { display:flex; flex-direction:column; align-items:center; width:100%; }
+  @media (min-width: 900px) {
+    .game { flex-direction:row; align-items:flex-start; justify-content:center; width:min(96vw,1180px); gap:28px; }
+    #boardWrap { order:1; flex:1 1 640px; max-width:680px; }
+    .panel { order:2; flex:0 0 400px; width:400px; }
+  }
   svg { width:100%; height:auto; display:block; background:#e9c98f; border-radius:16px; border:4px solid #3b2a1a; }
   .piece { cursor:default; }
   .piece.ready { cursor:pointer; }
   .piece.ready circle { animation:pulse 1s infinite; transform-box:fill-box; transform-origin:center; }
   .target { cursor:pointer; }
-  .controls { margin-top:16px; display:flex; gap:10px; align-items:center; }
+  .controls { margin-top:12px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; align-items:center; }
   .controls select, .controls button { font:inherit; padding:6px 12px; border-radius:8px; border:1px solid #3b2a1a55; background:#fff; }
   .legend { font-size:.85rem; opacity:.7; margin-top:8px; text-align:center; }
 </style>
@@ -59,7 +66,7 @@
   <h1>🎲 윷놀이</h1>
   <p class="sub">윷을 던지고, 나온 칸 수만큼 말을 움직여 먼저 모두 골인시키세요</p>
 
-  <div class="teams">
+  <div class="game"><div class="panel"><div class="teams">
     <div class="team red" id="team0"><b>🔴 빨강팀</b><div class="tray"></div></div>
     <div class="team blue" id="team1"><b>🔵 파랑팀</b><div class="tray"></div></div>
   </div>
@@ -70,13 +77,17 @@
   <button class="main" id="throwBtn">윷 던지기</button>
   <div class="pending" id="pending"></div>
 
-  <div id="boardWrap"><svg id="board" viewBox="0 0 600 600" aria-label="윷판"></svg></div>
-
   <div class="controls">
+    <label>상대
+      <select id="mode"><option value="cpu" selected>컴퓨터</option><option value="pvp">친구 (2인)</option></select>
+    </label>
     <label>말 개수
       <select id="pieceCount"><option>2</option><option selected>3</option><option>4</option></select>
     </label>
     <button id="newGame">새 게임</button>
+  </div>
+  </div>
+  <div id="boardWrap"><svg id="board" viewBox="0 0 600 600" aria-label="윷판"></svg></div>
   </div>
   <div class="legend">평평한 면 1개=도(1) · 2개=개(2) · 3개=걸(3) · 4개=윷(4, 한 번 더) · 0개=모(5, 한 번 더)<br>상대 말을 잡으면 한 번 더! 같은 편 말이 만나면 함께 움직여요(업기). 모서리에 멈춘 말은 지름길로 갈 수 있어요.</div>
 
@@ -115,9 +126,12 @@ const ROUTES = {
 };
 
 /* ---------- 상태 ---------- */
-let teams, turn, throwsLeft, pending, selIdx, choosing, winner, animating;
+let teams, turn, throwsLeft, pending, selIdx, choosing, winner, animating, mode = "cpu", cpuTimer;
+const humanTurn = () => winner === null && !(mode === "cpu" && turn === 1);
 
 function newGame() {
+  clearTimeout(cpuTimer);
+  mode = document.getElementById("mode").value;
   const n = +document.getElementById("pieceCount").value;
   teams = [0, 1].map(() => Array.from({length: n}, () => ({route: null, node: null, done: false})));
   turn = 0; throwsLeft = 1; pending = []; selIdx = 0; choosing = null; winner = null; animating = false;
@@ -164,7 +178,7 @@ function applyMove(lead, opt) {
 }
 
 function clickPiece(piece) {
-  if (winner !== null || pending.length === 0) return;
+  if (!humanTurn() || pending.length === 0) return;
   const opts = options(piece, pending[selIdx]);
   if (opts.length === 1) applyMove(piece, opts[0]);
   else { choosing = {piece, opts}; render(); }
@@ -176,9 +190,10 @@ function render(note = "") {
   teams.forEach((ts, t) => {
     const el = document.getElementById("team" + t);
     el.classList.toggle("active", winner === null && turn === t);
+    el.querySelector("b").textContent = (t ? "🔵 파랑팀" : "🔴 빨강팀") + (mode === "cpu" ? (t ? " (컴퓨터)" : " (나)") : "");
     const tray = el.querySelector(".tray");
     tray.innerHTML = "";
-    const canPick = winner === null && turn === t && pending.length > 0;
+    const canPick = humanTurn() && turn === t && pending.length > 0;
     let homeShown = false;
     ts.forEach((p, i) => {
       if (p.node !== null && !p.done) return;
@@ -201,6 +216,7 @@ function render(note = "") {
   // 상태 문구
   let msg;
   if (winner !== null) msg = `🎉 ${TEAM_NAMES[winner]}팀 승리!`;
+  else if (!humanTurn()) msg = throwsLeft ? "🤖 컴퓨터가 윷을 던지는 중…" : "🤖 컴퓨터가 말을 고르는 중…";
   else if (choosing) msg = "이동할 곳을 선택하세요 (지름길 또는 바깥 길)";
   else if (pending.length && throwsLeft) msg = `${TEAM_NAMES[turn]}팀: 말을 움직이거나 윷을 한 번 더 던지세요`;
   else if (pending.length) msg = `${TEAM_NAMES[turn]}팀: 말을 선택해 움직이세요`;
@@ -209,18 +225,20 @@ function render(note = "") {
   document.getElementById("status").style.color = winner !== null ? TEAM_COLORS[winner] : TEAM_COLORS[turn];
 
   // 버튼 / 대기 결과
-  document.getElementById("throwBtn").disabled = animating || winner !== null || throwsLeft === 0;
+  document.getElementById("throwBtn").disabled = animating || !humanTurn() || throwsLeft === 0;
   const pend = document.getElementById("pending");
   pend.innerHTML = "";
   pending.forEach((s, i) => {
     const c = document.createElement("button");
     c.className = "chip" + (i === selIdx ? " sel" : "");
     c.textContent = `${stepName(s)} (${s}칸)`;
+    c.disabled = !humanTurn();
     c.onclick = () => { selIdx = i; choosing = null; render(); };
     pend.appendChild(c);
   });
 
   renderBoard();
+  scheduleCpu();
 }
 const stepName = s => NAMES[s === 5 ? 0 : s];
 
@@ -241,7 +259,7 @@ function renderBoard() {
   h += `<text x="${P[0][0]}" y="${P[0][1] + 44}" text-anchor="middle" font-size="16" font-weight="700" fill="#3b2a1a">출발·골인</text>`;
 
   // 말
-  const ready = winner === null && pending.length > 0;
+  const ready = humanTurn() && pending.length > 0;
   teams.forEach((ts, t) => {
     const byNode = {};
     ts.forEach(p => { if (!p.done && p.node !== null) (byNode[p.node] = byNode[p.node] || []).push(p); });
@@ -273,9 +291,9 @@ function renderBoard() {
 /* ---------- 이벤트 ---------- */
 document.getElementById("board").addEventListener("click", e => {
   const tgt = e.target.closest(".target");
-  if (tgt && choosing) { applyMove(choosing.piece, choosing.opts[+tgt.dataset.opt]); return; }
+  if (tgt && choosing && humanTurn()) { applyMove(choosing.piece, choosing.opts[+tgt.dataset.opt]); return; }
   const pc = e.target.closest(".piece");
-  if (pc && winner === null && pending.length && +pc.dataset.team === turn) {
+  if (pc && humanTurn() && pending.length && +pc.dataset.team === turn) {
     const piece = teams[turn].find(p => !p.done && p.node === +pc.dataset.node);
     clickPiece(piece);
     return;
@@ -292,7 +310,9 @@ for (let i = 0; i < 4; i++) {
 }
 const sticks = [...stickBox.children];
 
-document.getElementById("throwBtn").addEventListener("click", () => {
+document.getElementById("throwBtn").addEventListener("click", () => { if (humanTurn()) doThrow(); });
+
+function doThrow() {
   if (animating || throwsLeft === 0 || winner !== null) return;
   animating = true;
   choosing = null;
@@ -315,9 +335,49 @@ document.getElementById("throwBtn").addEventListener("click", () => {
     animating = false;
     render(extra ? `${NAMES[n]}! 한 번 더 던지세요` : "");
   }, 900);
-});
+}
+
+/* ---------- 컴퓨터 ---------- */
+function scheduleCpu() {
+  clearTimeout(cpuTimer);
+  if (mode !== "cpu" || turn !== 1 || winner !== null || animating) return;
+  cpuTimer = setTimeout(cpuStep, 900);
+}
+
+function cpuStep() {
+  if (mode !== "cpu" || turn !== 1 || winner !== null || animating) return;
+  if (throwsLeft > 0) { doThrow(); return; }
+  if (pending.length === 0) return;
+  let best = null;
+  pending.forEach((steps, si) => {
+    const seen = new Set();
+    teams[1].forEach(p => {
+      if (p.done) return;
+      const key = p.node === null ? "home" : "n" + p.node;
+      if (seen.has(key)) return;
+      seen.add(key);
+      options(p, steps).forEach(opt => {
+        const sc = scoreMove(p, opt);
+        if (!best || sc > best.sc) best = {sc, si, p, opt};
+      });
+    });
+  });
+  selIdx = best.si;
+  applyMove(best.p, best.opt);
+}
+
+function scoreMove(lead, opt) {
+  let sc = Math.random();
+  if (opt.node === "F") return sc + 60;
+  if (teams[0].some(p => !p.done && p.node === opt.node)) sc += 100;      // 잡기
+  if (teams[1].some(p => p !== lead && !p.done && p.node === opt.node)) sc += 8; // 업기
+  if (opt.node >= 20) sc += 6;                                            // 지름길
+  sc += ROUTES[opt.route].indexOf(opt.node) * 0.5;                        // 진행도
+  return sc;
+}
 
 document.getElementById("newGame").addEventListener("click", newGame);
+document.getElementById("mode").addEventListener("change", newGame);
 newGame();
 </script>
 </body>
